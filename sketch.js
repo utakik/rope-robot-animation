@@ -6,11 +6,12 @@ let prevX, prevY, speed = 0;
 let cnv;
 
 function setup() {
+  // 重いときは有効化: pixelDensity(1);
   cnv = createCanvas(windowWidth, windowHeight);
   noStroke();
   colorMode(HSB, 255);
 
-  // 画面固定＆スクロール抑止（前回と同じ）
+  // 画面固定＆スクロール抑止
   cnv.position(0, 0);
   cnv.style('position', 'fixed');
   cnv.style('touch-action', 'none');
@@ -21,6 +22,10 @@ function setup() {
   cnv.elt.addEventListener('pointermove', (e) => {
     pressure = e.pressure || 0; // Apple Pencilなら0〜1、マウスは0か0.5
   });
+  // ペンを離したら筆圧をクリア
+  cnv.elt.addEventListener('pointerup',     () => pressure = 0);
+  cnv.elt.addEventListener('pointercancel', () => pressure = 0);
+  cnv.elt.addEventListener('pointerout',    () => pressure = 0);
 }
 
 function draw() {
@@ -39,9 +44,9 @@ function draw() {
                                       : constrain(map(speed, 0, 40, 0, maxDelta), 0, maxDelta));
   r = lerp(r, targetR, 0.2); // ふわっと追従
 
-  // ゆっくり色相回転（前回のまま）
-  let hue = (frameCount * 0.5) % 255;
-  fill(hue, 200, 200);
+  // ゆっくり色相回転
+  let h = (frameCount * 0.5) % 255;
+  fill(h, 200, 200);
   ellipse(mouseX, mouseY, r * 2, r * 2);
 
   // 情報表示
@@ -52,3 +57,4 @@ function draw() {
 }
 
 function touchMoved(){ return false; }
+function windowResized(){ resizeCanvas(windowWidth, windowHeight); }
