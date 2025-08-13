@@ -1,12 +1,13 @@
 let r = 20, pressure = 0, prevX, prevY, speed = 0;
+let cnv; // ← 追加
  
 function setup(){
-  createCanvas(windowWidth, windowHeight);
+  cnv = createCanvas(windowWidth, windowHeight); // ← 受け取る
   noStroke();
   colorMode(HSB, 255);
  
   // iPad等の筆圧（対応デバイスのみ）
-  canvas.elt.addEventListener('pointermove', e => { pressure = e.pressure || 0; });
+  cnv.elt.addEventListener('pointermove', e => { pressure = e.pressure || 0; });
  
   // 画面固定
   document.body.style.overscrollBehavior = 'none';
@@ -16,7 +17,7 @@ function draw(){
   background(245);
  
   // 移動速度（筆圧が無い端末のフォールバック）
-  if(prevX !== undefined){
+  if (prevX !== undefined){
     const dx = mouseX - prevX, dy = mouseY - prevY;
     speed = 0.9*speed + 0.1*sqrt(dx*dx + dy*dy);
   }
