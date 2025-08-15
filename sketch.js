@@ -3,7 +3,7 @@
 let target;            // 追従ターゲット（マウス/タッチ位置）
 let head;              // 先頭（ロボットの頭）
 let segments = [];     // ひもの節
-const SEG_NUM = 18;    // 節の数（増やすと長く柔らかく）
+const SEG_NUM = 50;    // 節の数（増やすと長く柔らかく）
 const SEG_LEN = 16;    // 節間距離
 const FOLLOW = 0.1;    // 追従の強さ
 const DAMP   = 0.86;   // 減衰
