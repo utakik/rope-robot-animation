@@ -36,10 +36,10 @@ function windowResized(){
 function draw(){
   background(0);
 
-  // 2Dっぽく描く（WEBGL座標をスクリーンに合わせる）
+  // 2Dっぽく描く（WEBGL座標をスクリーン座標に合わせる：Y軸を下向きに）
   resetMatrix();
-  ortho(-width/2, width/2, height/2, -height/2, -1000, 1000);
-  translate(-width/2, -height/2);
+  // 左=0, 右=width, 下=height, 上=0（ここで上下の向きを通常に）
+  ortho(0, width, height, 0, -1000, 1000);
 
   drawGrid();
   updateTarget();
