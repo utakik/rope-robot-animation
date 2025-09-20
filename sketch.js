@@ -2,7 +2,7 @@
 
 let target, head, segments = [];
 const SEG_NUM = 16;     // 節の数（重ければ下げる）
-const SEG_LEN = 16;     // 節の間隔
+const SEG_LEN = 26;     // 節の間隔
 const FOLLOW  = 0.30;   // ターゲット追従の速さ
 const DAMP    = 0.80;   // 減衰
 let particles = [];
