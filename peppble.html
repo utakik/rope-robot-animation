@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>脈動する白い点線アニメーション（トレース版テンプレート）</title>
+<style>
+
+  :root {
+
+    /* 太線の太さと、白点線の太さ（黒の内側に収める） */
+
+    --outer-stroke: 28;   /* 黒い線 */
+
+    --inner-stroke: 10;   /* 白い点線 */
+
+    --dash: 32;           /* 白四角の長さ */
+
+    --gap: 28;            /* 白四角の間隔 */
+
+    --speed: 2.8s;        /* 脈動の周期 */
+
+  }
+
+  html, body { height: 100%; }
+
+  body {
+
+    margin: 0;
+
+    background: #f6f5f2;
+
+    display: grid;
+
+    place-items: center;
+
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+
+  }
+
+  .stage { width: min(84vw, 960px); aspect-ratio: 4 / 3; }
+
+  svg { width: 100%; height: 100%; display: block; }
+
+  /* 共通 */
+
+  .fillFacet { fill: #8f8f8f; opacity: .85; }
+
+  .outline {
+
+    fill: none;
+
+    stroke: #111;
+
+    stroke-width: var(--outer-stroke);
+
+    stroke-linejoin: round;
+
+    stroke-linecap: round;
+
+  }
+
+  .dotted {
+
+    fill: none;
+
+    stroke: #fff;
+
+    stroke-width: var(--inner-stroke);
+
+    stroke-linecap: butt;         /* 四角風に見せる */
+
+    stroke-dasharray: var(--dash) var(--gap);
+
+    /* 黒線の“内側”に収める＝黒より細く、同一パスを重ねる */
+
+    animation: pulseFlow var(--speed) ease-in-out infinite;
+
+    filter: drop-shadow(0 0 0 rgba(0,0,0,0)); /* ブラー禁止の保険 */
+
+  }
+
+  .divider {
+
+    fill: none;
+
+    stroke: #111;
+
+    stroke-width: var(--outer-stroke);
+
+    stroke-linecap: round;
+
+  }
+
+  .divider-dotted {
+
+    fill: none;
+
+    stroke: #fff;
+
+    stroke-width: calc(var(--inner-stroke) * 0.9);
+
+    stroke-linecap: butt;
+
+    stroke-dasharray: var(--dash) var(--gap);
+
+    animation: pulseFlow var(--speed) ease-in-out infinite;
+
+  }
+
+  @keyframes pulseFlow {
+
+    0%, 100% {
+
+      stroke-width: var(--inner-stroke);
+
+      stroke-dashoffset: 0;
+
+    }
+
+    50% {
+
+      /* 収縮→拡張のリズム。わずかに太く＆前進 */
+
+      stroke-width: calc(var(--inner-stroke) * 1.45);
+
+      stroke-dashoffset: calc(-1 * (var(--dash) + var(--gap)));
+
+    }
+
+  }
+</style>
+</head>
+<body>
+<div class="stage">
+<!--
+
+    ▼ 使い方（画像トレース → ここに貼る）
+
+    1) 画像をIllustrator or Inkscapeでトレース。
+
+       - 外側の七角形、内側の五角形、各頂点を結ぶ内部分割線を“別々のパス”にする。
+
+       - できるだけ角数を維持（余分なノードはSimplifyで整理）。
+
+    2) SVGで書き出し、各パスの d 属性を下の placeholder に置き換える。
+
+       ※ viewBox は 1200×900（3:4）前提。必要ならスケールして調整。
+
+    3) 白点線のサイズ感は CSS 変数を調整（--dash, --gap, --inner-stroke）。
+
+  -->
+<svg viewBox="0 0 1200 900" xmlns="http://www.w3.org/2000/svg" aria-label="pulsating pebble">
+<defs>
+<!-- ファセット塗りのマスク用に外形を複製して使う場合に備えたID -->
+<clipPath id="outer-clip">
+<path id="outerPathClip" d="M 100,450  260,240  630,210  980,360  920,700  540,740  220,640 Z"/>
+</clipPath>
+</defs>
+<!-- 外側の七角形：黒太線＋白点線（同じd属性） -->
+<path id="outerPath" class="outline" d="M 100,450  260,240  630,210  980,360  920,700  540,740  220,640 Z"/>
+<path class="dotted" d="M 100,450  260,240  630,210  980,360  920,700  540,740  220,640 Z"/>
+<!-- 内側の五角形（少し左にオフセット） -->
+<path id="innerPentagon" class="outline" d="M 420,470  520,340  700,370  750,520  600,590 Z"/>
+<path class="dotted" d="M 420,470  520,340  700,370  750,520  600,590 Z"/>
+<!-- 頂点接続用の内部分割線（例：5本） -->
+<path class="divider" d="M 420,470 100,450"/>
+<path class="divider" d="M 520,340 260,240"/>
+<path class="divider" d="M 700,370 630,210"/>
+<path class="divider" d="M 750,520 980,360"/>
+<path class="divider" d="M 600,590 920,700"/>
+<path class="divider-dotted" d="M 420,470 100,450"/>
+<path class="divider-dotted" d="M 520,340 260,240"/>
+<path class="divider-dotted" d="M 700,370 630,210"/>
+<path class="divider-dotted" d="M 750,520 980,360"/>
+<path class="divider-dotted" d="M 600,590 920,700"/>
+<!-- 参考：外形内をグレーで面分割したい場合はclipPathを使って自由に追加可
+<g clip-path="url(#outer-clip)">
+<polygon class="fillFacet" points="..."/>
+</g>
+
+    -->
+</svg>
+</div>
+</body>
+</html>
+SVG namespace
+ 
