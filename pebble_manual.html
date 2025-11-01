@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>pebble_outer_follow</title>
+<title>pebble_outer_follow_resistance</title>
 <style>
   html, body {
     margin: 0;
@@ -22,7 +22,7 @@
   svg {
     width: 100%;
     height: 100%;
-    touch-action: none; /* iPadで画面がスクロールしないように */
+    touch-action: none; /* iPadでスクロールしない */
     display: block;
   }
 
@@ -65,7 +65,7 @@
 <body>
 <div class="stage">
   <svg id="pebbleSvg" viewBox="0 0 1200 900">
-    <!-- 外側の七角形をグループ化して、まとめて少し回す -->
+    <!-- 外側の七角形（少しだけ追従させる） -->
     <g id="outerGroup">
       <path class="outline"
             d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
@@ -73,7 +73,7 @@
             d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
     </g>
 
-    <!-- 内側の五角形。こっちは大きく回る -->
+    <!-- 内側の五角形（メインで回す） -->
     <g id="innerGroup">
       <path class="outline"
             d="M420,470 520,340 700,370 750,520 600,590Z"/>
@@ -86,6 +86,7 @@
 <div class="hud">
   <div class="row"><div class="key">inner</div><div class="val" id="innerVal">0.0°</div></div>
   <div class="row"><div class="key">outer</div><div class="val" id="outerVal">0.0°</div></div>
+  <div class="row"><div class="key">gain</div><div class="val" id="gainVal">1.00</div></div>
 </div>
 
 <script>
@@ -96,22 +97,22 @@
 
   const innerValEl = document.getElementById("innerVal");
   const outerValEl = document.getElementById("outerVal");
+  const gainValEl  = document.getElementById("gainVal");
 
   // 状態
   let dragging = false;
 
-  // 内側の見た目の角度（ユーザーが回す角度、±90まで）
+  // 内側の角度（ユーザー操作の結果。見た目）
   let innerAngle = 0;
 
-  // 指の前フレーム角度
+  // 前フレームのポインタ角度
   let prevPointerAngle = 0;
 
-  // 回転中心。内側と外側、同じ中心で回して良いとする
+  // 回転中心
   let center = {x:0,y:0};
   let centerReady = false;
 
-  // 「一気に+360/-360に飛ぶ」のを避けるための差分正規化
-  // 179 -> -179 を -2 と扱うなど、連続性を保つ
+  // 角度の差分を安定化（179→-179を-2として扱う）
   function angleDelta(nowDeg, prevDeg){
     let diff = nowDeg - prevDeg;
     if (diff > 180)  diff -= 360;
@@ -119,7 +120,7 @@
     return diff;
   }
 
-  // 回転中心の計算（最初の1回だけ）
+  // 回転中心を一度だけ測る（五角形のBBoxの中心）
   function initCenterIfNeeded() {
     if (centerReady) return;
     const bbox = innerGroup.getBBox();
@@ -143,39 +144,46 @@
     return Math.atan2(dy, dx) * 180 / Math.PI;
   }
 
-  // 見た目反映
-  function applyRotation() {
-    // 内側は innerAngle（±90°まで）
+  // 描画反映
+  function applyRotation(gainForHud) {
+    // 内側：そのまま innerAngle
     innerGroup.setAttribute(
       "transform",
       `rotate(${innerAngle},${center.x},${center.y})`
     );
 
-    // 外側は innerAngle の 1/15ぐらいしか動かさない
-    // さらに安全のため ±5° でクリップする
-    let outerAngle = innerAngle * (1/15); // これで大体1/10〜1/20の中間くらい
+    // 外側：内側の角度の1/15だけ追従。ただし ±5°に制限
+    let outerAngle = innerAngle * (1/15);
     if (outerAngle < -5) outerAngle = -5;
     if (outerAngle >  5) outerAngle =  5;
-
     outerGroup.setAttribute(
       "transform",
       `rotate(${outerAngle},${center.x},${center.y})`
     );
 
-    // HUDに表示
+    // HUD
     innerValEl.textContent = innerAngle.toFixed(1) + "°";
     outerValEl.textContent = outerAngle.toFixed(2) + "°";
+
+    // gain（抵抗の強さの表示用）
+    if (gainForHud !== undefined) {
+      gainValEl.textContent = gainForHud.toFixed(2);
+    } else {
+      // 最初の表示
+      const t0 = Math.min(Math.abs(innerAngle)/90, 1);
+      const g0 = 1 - t0*t0;
+      gainValEl.textContent = g0.toFixed(2);
+    }
   }
 
   function onPointerDown(e){
     initCenterIfNeeded();
     dragging = true;
 
-    // いまの指の角度を基準として記録
     const p = clientToSvgXY(e);
     prevPointerAngle = pointerAngleDeg(p.x, p.y);
 
-    e.preventDefault(); // iPadで画面が揺れないように
+    e.preventDefault();
   }
 
   function onPointerMove(e){
@@ -184,18 +192,33 @@
     const p = clientToSvgXY(e);
     const nowA = pointerAngleDeg(p.x, p.y);
 
-    // 前フレームとの差分だけ足し込む方式
-    const d = angleDelta(nowA, prevPointerAngle);
+    // 指の角度の変化（1フレームぶんの小さい差）
+    let d = angleDelta(nowA, prevPointerAngle);
+
+    // 次フレームのために覚える
     prevPointerAngle = nowA;
 
-    // ユーザー角度更新
+    // いまの角度が限界±90のどれくらい近いかを0〜1で測る
+    // 0 = 中央に近い（軽い）
+    // 1 = 端に近い（重い）
+    const t = Math.min(Math.abs(innerAngle) / 90, 1);
+
+    // 抵抗ゲイン（二次関数）
+    // 中央では1.0、端で0.0
+    const gain = 1 - t * t;
+
+    // このゲインをかけることで、端に近いほど動きが鈍くなる
+    d = d * gain;
+
+    // 回転角を更新
     innerAngle += d;
 
-    // ±90°に制限
+    // 絶対限界はまだ±90°で切る（物理的ストッパー）
     if (innerAngle < -90) innerAngle = -90;
     if (innerAngle >  90) innerAngle =  90;
 
-    applyRotation();
+    applyRotation(gain);
+
     e.preventDefault();
   }
 
