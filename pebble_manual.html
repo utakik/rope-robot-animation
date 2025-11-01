@@ -87,11 +87,13 @@
 <svg viewBox="0 0 1200 900"
        xmlns="http://www.w3.org/2000/svg"
        aria-label="interactive pebble with clamped rotation and stretchy tendons">
-<!-- 外側の七角形（骨格） -->
-<path class="outline"
-          d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z" />
-<path class="dotted"
-          d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z" />
+<!-- 外側の七角形（骨格）をグループ化 -->
+<g id="outerGroup">
+  <path class="outline"
+        d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z" />
+  <path class="dotted"
+        d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z" />
+</g>
 <!-- 内側の五角形（筋肉）。これを回す -->
 <g class="inner-rot" id="rotTarget">
 <path class="outline"
@@ -140,6 +142,7 @@
 <script>
 (function() {
   const rotTarget = document.getElementById('rotTarget');
+  const outerGroup = document.getElementById('outerGroup');
   const angleVal  = document.getElementById('angleVal');
   // 1. 五角形の元の5頂点（回転前の座標）を定義
   //    rotTargetグループの中身と一致していることが重要
@@ -228,6 +231,11 @@
   function applyRotation() {
     // グループを回転（CSS transform）
     rotTarget.style.transform = `rotate(${lastAngleDeg}deg)`;
+
+    // 外殻（七角形）を少しだけ回転（例：1/5の角度）
+    const outerAngle = lastAngleDeg / 5; // 1/5倍。1/10なら /10
+    outerGroup.style.transform = `rotate(${outerAngle}deg)`;
+
     // 各内側頂点を回転させて、対応するリンクパス(M ... L ...)を書き直す
     for (let i = 0; i < innerVerts.length; i++) {
       const pIn  = rotatePoint(innerVerts[i], lastAngleDeg);
