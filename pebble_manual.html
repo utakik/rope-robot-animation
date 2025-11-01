@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>pebble_angle_continuous</title>
+<title>pebble_outer_follow</title>
 <style>
   html, body {
     margin: 0;
@@ -11,17 +11,21 @@
     height: 100%;
     display: grid;
     place-items: center;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
+
   .stage {
     width: min(84vw, 960px);
-    aspect-ratio: 4/3;
+    aspect-ratio: 4 / 3;
   }
+
   svg {
     width: 100%;
     height: 100%;
-    touch-action: none;
+    touch-action: none; /* iPadで画面がスクロールしないように */
     display: block;
   }
+
   .outline {
     fill: none;
     stroke: #111;
@@ -29,12 +33,15 @@
     stroke-linejoin: round;
     stroke-linecap: round;
   }
+
   .dotted {
     fill: none;
     stroke: #fff;
     stroke-width: 10px;
+    stroke-linecap: butt;
     stroke-dasharray: 32px 28px;
   }
+
   .hud {
     position: fixed;
     right: 1rem;
@@ -44,92 +51,167 @@
     font-family: monospace;
     padding: .5rem .7rem;
     border-radius: 6px;
+    line-height: 1.4;
+    font-size: 12px;
+    min-width: 8rem;
+    user-select: none;
+    pointer-events: none;
   }
+  .row { display: flex; justify-content: space-between; }
+  .key { color:#9c9c9c; padding-right:.5rem; }
+  .val { color:#b2ff9b; font-variant-numeric: tabular-nums; text-align:right; }
 </style>
 </head>
 <body>
 <div class="stage">
   <svg id="pebbleSvg" viewBox="0 0 1200 900">
-    <path class="outline" d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
-    <path class="dotted"  d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
+    <!-- 外側の七角形をグループ化して、まとめて少し回す -->
+    <g id="outerGroup">
+      <path class="outline"
+            d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
+      <path class="dotted"
+            d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
+    </g>
+
+    <!-- 内側の五角形。こっちは大きく回る -->
     <g id="innerGroup">
-      <path class="outline" d="M420,470 520,340 700,370 750,520 600,590Z"/>
-      <path class="dotted"  d="M420,470 520,340 700,370 750,520 600,590Z"/>
+      <path class="outline"
+            d="M420,470 520,340 700,370 750,520 600,590Z"/>
+      <path class="dotted"
+            d="M420,470 520,340 700,370 750,520 600,590Z"/>
     </g>
   </svg>
 </div>
 
-<div class="hud"><span id="angleVal">0</span>°</div>
+<div class="hud">
+  <div class="row"><div class="key">inner</div><div class="val" id="innerVal">0.0°</div></div>
+  <div class="row"><div class="key">outer</div><div class="val" id="outerVal">0.0°</div></div>
+</div>
 
 <script>
 (function(){
-  const svg = document.getElementById("pebbleSvg");
-  const inner = document.getElementById("innerGroup");
-  const angleVal = document.getElementById("angleVal");
+  const svg        = document.getElementById("pebbleSvg");
+  const innerGroup = document.getElementById("innerGroup");
+  const outerGroup = document.getElementById("outerGroup");
 
+  const innerValEl = document.getElementById("innerVal");
+  const outerValEl = document.getElementById("outerVal");
+
+  // 状態
   let dragging = false;
-  let center = {x:0,y:0}, centerReady = false;
-  let currentAngle = 0;
-  let prevRawAngle = 0;
 
-  function initCenter() {
+  // 内側の見た目の角度（ユーザーが回す角度、±90まで）
+  let innerAngle = 0;
+
+  // 指の前フレーム角度
+  let prevPointerAngle = 0;
+
+  // 回転中心。内側と外側、同じ中心で回して良いとする
+  let center = {x:0,y:0};
+  let centerReady = false;
+
+  // 「一気に+360/-360に飛ぶ」のを避けるための差分正規化
+  // 179 -> -179 を -2 と扱うなど、連続性を保つ
+  function angleDelta(nowDeg, prevDeg){
+    let diff = nowDeg - prevDeg;
+    if (diff > 180)  diff -= 360;
+    if (diff < -180) diff += 360;
+    return diff;
+  }
+
+  // 回転中心の計算（最初の1回だけ）
+  function initCenterIfNeeded() {
     if (centerReady) return;
-    const bb = inner.getBBox();
-    center = {x: bb.x + bb.width/2, y: bb.y + bb.height/2};
+    const bbox = innerGroup.getBBox();
+    center.x = bbox.x + bbox.width / 2;
+    center.y = bbox.y + bbox.height / 2;
     centerReady = true;
   }
 
-  function clientToSvg(e) {
+  // 画面座標→SVGローカル座標
+  function clientToSvgXY(evt) {
     const pt = svg.createSVGPoint();
-    pt.x = e.clientX; pt.y = e.clientY;
+    pt.x = evt.clientX;
+    pt.y = evt.clientY;
     return pt.matrixTransform(svg.getScreenCTM().inverse());
   }
 
-  function atanDeg(px,py){ return Math.atan2(py-center.y, px-center.x)*180/Math.PI; }
+  // 中心から見た指の角度[deg]
+  function pointerAngleDeg(px, py) {
+    const dx = px - center.x;
+    const dy = py - center.y;
+    return Math.atan2(dy, dx) * 180 / Math.PI;
+  }
 
+  // 見た目反映
   function applyRotation() {
-    inner.setAttribute("transform",`rotate(${currentAngle},${center.x},${center.y})`);
-    angleVal.textContent = currentAngle.toFixed(1);
+    // 内側は innerAngle（±90°まで）
+    innerGroup.setAttribute(
+      "transform",
+      `rotate(${innerAngle},${center.x},${center.y})`
+    );
+
+    // 外側は innerAngle の 1/15ぐらいしか動かさない
+    // さらに安全のため ±5° でクリップする
+    let outerAngle = innerAngle * (1/15); // これで大体1/10〜1/20の中間くらい
+    if (outerAngle < -5) outerAngle = -5;
+    if (outerAngle >  5) outerAngle =  5;
+
+    outerGroup.setAttribute(
+      "transform",
+      `rotate(${outerAngle},${center.x},${center.y})`
+    );
+
+    // HUDに表示
+    innerValEl.textContent = innerAngle.toFixed(1) + "°";
+    outerValEl.textContent = outerAngle.toFixed(2) + "°";
   }
 
-  function onDown(e){
-    initCenter();
-    const p = clientToSvg(e);
-    prevRawAngle = atanDeg(p.x,p.y);
+  function onPointerDown(e){
+    initCenterIfNeeded();
     dragging = true;
-    e.preventDefault();
+
+    // いまの指の角度を基準として記録
+    const p = clientToSvgXY(e);
+    prevPointerAngle = pointerAngleDeg(p.x, p.y);
+
+    e.preventDefault(); // iPadで画面が揺れないように
   }
 
-  function onMove(e){
-    if(!dragging) return;
-    const p = clientToSvg(e);
-    const raw = atanDeg(p.x,p.y);
-    let delta = raw - prevRawAngle;
+  function onPointerMove(e){
+    if (!dragging) return;
 
-    // ここで360度境界の飛びを補正
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
+    const p = clientToSvgXY(e);
+    const nowA = pointerAngleDeg(p.x, p.y);
 
-    currentAngle += delta;
-    prevRawAngle = raw;
+    // 前フレームとの差分だけ足し込む方式
+    const d = angleDelta(nowA, prevPointerAngle);
+    prevPointerAngle = nowA;
 
-    // ±90度制限
-    if (currentAngle < -90) currentAngle = -90;
-    if (currentAngle >  90) currentAngle =  90;
+    // ユーザー角度更新
+    innerAngle += d;
+
+    // ±90°に制限
+    if (innerAngle < -90) innerAngle = -90;
+    if (innerAngle >  90) innerAngle =  90;
 
     applyRotation();
     e.preventDefault();
   }
 
-  function onUp(){ dragging = false; }
+  function onPointerUp(){
+    dragging = false;
+  }
 
-  svg.addEventListener("pointerdown", onDown);
-  svg.addEventListener("pointermove", onMove);
-  svg.addEventListener("pointerup", onUp);
-  svg.addEventListener("pointercancel", onUp);
-  svg.addEventListener("pointerleave", onUp);
+  svg.addEventListener("pointerdown",  onPointerDown);
+  svg.addEventListener("pointermove",  onPointerMove);
+  svg.addEventListener("pointerup",    onPointerUp);
+  svg.addEventListener("pointercancel",onPointerUp);
+  svg.addEventListener("pointerleave", onPointerUp);
 
-  initCenter(); applyRotation();
+  // 初期表示
+  initCenterIfNeeded();
+  applyRotation();
 })();
 </script>
 </body>
