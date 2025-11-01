@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>pebble_manual (keep: 前回の角度を維持)</title>
+<title>pebble_manual (reset: 指の位置に合わせてリセット)</title>
 <style>
   html, body { height: 100%; }
   body { margin: 0; background: #f6f5f2; display: grid; place-items: center; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;}
@@ -134,7 +134,7 @@
     for (let i = 0; i < 5; i++) {
       const pIn = rotatePoint(innerVerts[i], lastAngleDeg);
       const pOut = outerVerts[i];
-      const ratio = 0.1;
+      const ratio = 0.1; // 1/10だけ引き寄せ
       deformed.push({
         x: pOut.x + (pIn.x - pOut.x) * ratio,
         y: pOut.y + (pIn.y - pOut.y) * ratio,
@@ -165,7 +165,8 @@
     }
     angleVal.textContent = lastAngleDeg.toFixed(1) + '°';
   }
-  // ---- 前回の角度を維持 ----
+
+  // ---- 指の位置に合わせてリセット ----
   function onPointerDown(e) {
     dragging = true;
     rotTarget.classList.add('dragging');
@@ -173,8 +174,10 @@
     updateCenter();
     const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
     const pointerAngle = angleDegFromCenter(p.x, p.y);
+    lastAngleDeg = clampAngle(pointerAngle); // 指位置にリセット
     dragStartPointerAngleDeg = pointerAngle;
-    dragStartShapeAngle = lastAngleDeg; // 前回の角度を維持
+    dragStartShapeAngle = lastAngleDeg;
+    applyRotation();
     e.preventDefault();
   }
   function onPointerMove(e) {
@@ -185,6 +188,7 @@
     let pointerDiff = getAngleDiff(pointerAngleDeg, dragStartPointerAngleDeg);
     let rawAngle = dragStartShapeAngle + pointerDiff;
     let clamped = clampAngle(rawAngle);
+    // ジャンプ防止: 制限端に達したら基準点リセット
     if (clamped !== rawAngle) {
       dragStartShapeAngle = clamped;
       dragStartPointerAngleDeg = pointerAngleDeg;
