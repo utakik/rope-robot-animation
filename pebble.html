@@ -36,42 +36,72 @@
   }
 
   /* 黒い線（外形・内側の多角形・放射の線） */
-  .outline {
-    fill: none;
-    stroke: #111;
-    stroke-width: var(--outer-stroke);
-    stroke-linejoin: round;
-    stroke-linecap: round;
+ /* 黒線はそのまま */
+
+.outline {
+
+  fill: none;
+
+  stroke: #111;
+
+  stroke-width: 28px;          /* var(--outer-stroke) の代わりに直値 */
+
+  stroke-linejoin: round;
+
+  stroke-linecap: round;
+
+}
+
+.divider {
+
+  fill: none;
+
+  stroke: #111;
+
+  stroke-width: 28px;          /* 同じく直値 */
+
+  stroke-linecap: round;
+
+}
+
+/* 白い動く点線（Firefox検証用・超ベタ書き） */
+
+.dotted,
+
+.divider-dotted {
+
+  fill: none;
+
+  stroke: #fff;
+
+  stroke-linecap: butt;
+
+  stroke-width: 10px;          /* var(--inner-stroke) → 固定値 */
+
+  stroke-dasharray: 32px 28px; /* var(--dash) var(--gap) → 固定値 */
+
+  animation: flowOneWay 2.8s linear infinite; /* var(--speed) → 固定値 */
+
+}
+
+/* アニメーション：こっちもcalc()もvar()も排除 */
+
+@keyframes flowOneWay {
+
+  0% {
+
+    stroke-dashoffset: 0px;
+
   }
 
-  .divider {
-    fill: none;
-    stroke: #111;
-    stroke-width: var(--outer-stroke);
-    stroke-linecap: round;
+  100% {
+
+    stroke-dashoffset: -60px;  /* 32 + 28 = 60。ひとコマ分だけ前に送る */
+
   }
 
-  /* 白い流れる点線（太さ固定・一方向フローのみ） */
-  .dotted,
-  .divider-dotted {
-    fill: none;
-    stroke: #fff;
-    stroke-linecap: butt;
-    stroke-width: var(--inner-stroke);
-    stroke-dasharray: var(--dash) var(--gap);
-    animation: flowOneWay var(--speed) linear infinite;
-  }
-
-  /* 一方向に流れるアニメーション */
-  @keyframes flowOneWay {
-    0% {
-      stroke-dashoffset: 0;
-    }
-    100% {
-      /* dash + gapぶんだけ前に送る。値はマイナス方向で回し続ける */
-      stroke-dashoffset: calc(-1 * (var(--dash) + var(--gap)));
-    }
-  }
+}
+ 
 </style>
 </head>
 <body>
