@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>pebble_manual (reset: 指の位置に合わせてリセット)</title>
+<title>pebble_manual (端でジャンプしない・微動あり)</title>
 <style>
   html, body { height: 100%; }
   body { margin: 0; background: #f6f5f2; display: grid; place-items: center; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;}
@@ -52,7 +52,6 @@
 </div>
 <script>
 (function() {
-  // 基本データ
   const rotTarget = document.getElementById('rotTarget');
   const outerOutline = document.getElementById('outerOutline');
   const outerDotted = document.getElementById('outerDotted');
@@ -88,6 +87,7 @@
     document.getElementById('link4-white'),
   ];
   let dragging = false;
+  let dragActive = false; // 端から指が十分離れてからドラッグ開始
   let lastAngleDeg = 0;
   let dragStartShapeAngle = 0;
   let dragStartPointerAngleDeg = 0;
@@ -95,6 +95,9 @@
   let originalOuterPathStr = "";
   const MIN_ANGLE = -90;
   const MAX_ANGLE =  90;
+  // 端から何度離れたらドラッグ開始するか（ジャンプ防止閾値）
+  const DRAG_START_THRESHOLD = 20;
+
   function clampAngle(aDeg) {
     if (aDeg < MIN_ANGLE) return MIN_ANGLE;
     if (aDeg > MAX_ANGLE) return MAX_ANGLE;
@@ -128,7 +131,6 @@
       y: center.y + dx * sinA + dy * cosA,
     };
   }
-  // 結線の外側端点だけ微動
   function getDeformedLinkOuterVerts() {
     let deformed = [];
     for (let i = 0; i < 5; i++) {
@@ -166,29 +168,36 @@
     angleVal.textContent = lastAngleDeg.toFixed(1) + '°';
   }
 
-  // ---- 指の位置に合わせてリセット ----
   function onPointerDown(e) {
     dragging = true;
+    dragActive = false;
     rotTarget.classList.add('dragging');
-    const svgEl = rotTarget.ownerSVGElement;
     updateCenter();
-    const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
-    const pointerAngle = angleDegFromCenter(p.x, p.y);
-    lastAngleDeg = clampAngle(pointerAngle); // 指位置にリセット
-    dragStartPointerAngleDeg = pointerAngle;
+    const p = clientToSvgCoords(rotTarget.ownerSVGElement, e.clientX, e.clientY);
+    dragStartPointerAngleDeg = angleDegFromCenter(p.x, p.y);
     dragStartShapeAngle = lastAngleDeg;
-    applyRotation();
     e.preventDefault();
   }
   function onPointerMove(e) {
     if (!dragging) return;
-    const svgEl = rotTarget.ownerSVGElement;
-    const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
+    const p = clientToSvgCoords(rotTarget.ownerSVGElement, e.clientX, e.clientY);
     const pointerAngleDeg = angleDegFromCenter(p.x, p.y);
+
+    // 端で指を離した後は、指の座標が端から十分離れるまで回転開始しない
+    if (!dragActive) {
+      if (Math.abs(getAngleDiff(pointerAngleDeg, lastAngleDeg)) > DRAG_START_THRESHOLD) {
+        // 端から離れたらドラッグ開始
+        dragStartPointerAngleDeg = pointerAngleDeg;
+        dragStartShapeAngle = lastAngleDeg;
+        dragActive = true;
+      } else {
+        // まだ端に近いなら何もしない（回転は端で固定）
+        return;
+      }
+    }
     let pointerDiff = getAngleDiff(pointerAngleDeg, dragStartPointerAngleDeg);
     let rawAngle = dragStartShapeAngle + pointerDiff;
     let clamped = clampAngle(rawAngle);
-    // ジャンプ防止: 制限端に達したら基準点リセット
     if (clamped !== rawAngle) {
       dragStartShapeAngle = clamped;
       dragStartPointerAngleDeg = pointerAngleDeg;
@@ -202,6 +211,7 @@
   function endDrag() {
     if (!dragging) return;
     dragging = false;
+    dragActive = false;
     rotTarget.classList.remove('dragging');
   }
   function getOriginalOuterPathStr() {
