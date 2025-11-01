@@ -5,155 +5,92 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>pebble_manual (clamped rotation with stretchy links)</title>
 <style>
-
   html, body { height: 100%; }
-
   body {
-
     margin: 0;
-
     background: #f6f5f2;
-
     display: grid;
-
     place-items: center;
-
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
-
   }
 
   .stage {
-
     width: min(84vw, 960px);
-
     aspect-ratio: 4 / 3;
-
   }
 
   svg {
-
     width: 100%;
-
     height: 100%;
-
     display: block;
-
     touch-action: none; /* 指ドラッグ時にブラウザがスクロールしないように */
-
   }
 
   /* ===== 黒い線（外殻・内殻・放射ライン） ===== */
-
   .outline {
-
     fill: none;
-
     stroke: #111;
-
     stroke-width: 28px;
-
     stroke-linejoin: round;
-
     stroke-linecap: round;
-
   }
 
   .divider {
-
     fill: none;
-
     stroke: #111;
-
     stroke-width: 28px;
-
     stroke-linecap: round;
-
   }
 
   /* ===== 白い流れる点線（血流） ===== */
 
   .dotted,
-
   .divider-dotted {
-
     fill: none;
-
     stroke: #fff;
-
     stroke-linecap: butt;
-
     stroke-width: 10px;
-
     stroke-dasharray: 32px 28px;
-
     animation: flowOneWay 2.8s linear infinite;
-
   }
 
   @keyframes flowOneWay {
-
     0%   { stroke-dashoffset: 0px; }
-
     100% { stroke-dashoffset: -60px; } /* 32 + 28 */
-
   }
 
   /* ===== 手で回す対象：内側の五角形グループ ===== */
 
   .inner-rot {
-
     transform-box: fill-box;
-
     transform-origin: center;
-
     cursor: grab;
-
   }
 
   .inner-rot.dragging {
-
     cursor: grabbing;
-
   }
 
   /* 右下のHUD（角度表示） */
-
   .hud {
-
     position: fixed;
-
     right: 0.75rem;
-
     bottom: 0.75rem;
-
     background: rgba(0,0,0,0.65);
-
     color: #fff;
-
     font-size: 12px;
-
     line-height: 1.4;
-
     font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
-
     border-radius: 8px;
-
     padding: 0.5rem 0.6rem;
-
     min-width: 8rem;
-
     pointer-events: none;
-
     user-select: none;
-
   }
 
   .hud .val {
-
     color: #b2ff9b;
-
     font-variant-numeric: tabular-nums;
-
   }
 </style>
 </head>
@@ -242,51 +179,30 @@
 <script>
 
 (function() {
-
   const rotTarget = document.getElementById('rotTarget');
-
   const angleVal  = document.getElementById('angleVal');
-
   // 1. 五角形の元の5頂点（回転前の座標）を定義
-
   //    rotTargetグループの中身と一致していることが重要
-
   //    対応関係:
-
   //    0 -> (420,470) 対外点 (100,450)
-
   //    1 -> (520,340) 対外点 (260,240)
-
   //    2 -> (700,370) 対外点 (630,210)
-
   //    3 -> (750,520) 対外点 (980,360)
-
   //    4 -> (600,590) 対外点 (920,700)
 
   const innerVerts = [
-
     { x:420, y:470 },
-
     { x:520, y:340 },
-
     { x:700, y:370 },
-
     { x:750, y:520 },
-
     { x:600, y:590 },
-
   ];
 
   const outerVerts = [
-
     { x:100, y:450 },
-
     { x:260, y:240 },
-
     { x:630, y:210 },
-
     { x:980, y:360 },
-
     { x:920, y:700 },
 
   ];
@@ -294,17 +210,11 @@
   // 2. 対応するパス要素を拾う
 
   const linkBlackEls = [
-
     document.getElementById('link0-black'),
-
     document.getElementById('link1-black'),
-
     document.getElementById('link2-black'),
-
     document.getElementById('link3-black'),
-
     document.getElementById('link4-black'),
-
   ];
 
   const linkWhiteEls = [
@@ -443,55 +353,31 @@
 
   // pointerdown: ドラッグ開始
 
-  function onPointerDown(e) {
+ // ドラッグ開始時、ポインタと五角形の角度差を取得
+let pointerToShapeAngle = 0;
 
-    dragging = true;
+function onPointerDown(e) {
+  dragging = true;
+  rotTarget.classList.add('dragging');
+  const svgEl = rotTarget.ownerSVGElement;
+  updateCenter();
+  const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
+  const pointerAngle = angleDegFromCenter(p.x, p.y);
+  pointerToShapeAngle = pointerAngle - lastAngleDeg; // ポインタと五角形の角度差
+  e.preventDefault();
+}
 
-    rotTarget.classList.add('dragging');
-
-    const svgEl = rotTarget.ownerSVGElement;
-
-    updateCenter(); // いまの中心を更新
-
-    // 指の位置をSVG座標系に
-
-    const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
-
-    startPointerAngleDeg = angleDegFromCenter(p.x, p.y);
-
-    baseAngleDeg = lastAngleDeg;
-
-    e.preventDefault();
-
-  }
-
-  // pointermove: ドラッグ中は角度更新
-
-  function onPointerMove(e) {
-
-    if (!dragging) return;
-
-    const svgEl = rotTarget.ownerSVGElement;
-
-    const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
-
-    const currentPointerAngleDeg = angleDegFromCenter(p.x, p.y);
-
-    const diff = currentPointerAngleDeg - startPointerAngleDeg;
-
-    // 累積角度候補
-
-    const rawAngle = baseAngleDeg + diff;
-
-    // 制限角度にクランプ
-
-    lastAngleDeg = clampAngle(rawAngle);
-
-    applyRotation();
-
-    e.preventDefault();
-
-  }
+function onPointerMove(e) {
+  if (!dragging) return;
+  const svgEl = rotTarget.ownerSVGElement;
+  const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
+  const pointerAngle = angleDegFromCenter(p.x, p.y);
+  // ポインタの現在角度から、ドラッグ開始時の差分を引く
+  let rawAngle = pointerAngle - pointerToShapeAngle;
+  lastAngleDeg = clampAngle(rawAngle);
+  applyRotation();
+  e.preventDefault();
+}
 
   // pointerup系: ドラッグ終了
 
