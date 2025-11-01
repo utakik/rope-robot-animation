@@ -83,7 +83,7 @@
 <svg viewBox="0 0 1200 900"
        xmlns="http://www.w3.org/2000/svg"
        aria-label="interactive pebble with clamped rotation and stretchy tendons">
-<!-- 外側の七角形（骨格）をグループ化 -->
+<!-- 外側の七角形（骨格） -->
 <g id="outerGroup">
   <path class="outline" id="outerOutline"
         d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z" />
@@ -118,7 +118,6 @@
 <script>
 (function() {
   const rotTarget = document.getElementById('rotTarget');
-  const outerGroup = document.getElementById('outerGroup');
   const outerOutline = document.getElementById('outerOutline');
   const outerDotted = document.getElementById('outerDotted');
   const angleVal  = document.getElementById('angleVal');
@@ -135,6 +134,8 @@
     { x:630, y:210 },
     { x:980, y:360 },
     { x:920, y:700 },
+    { x:540, y:740 },
+    { x:220, y:640 },
   ];
   const linkBlackEls = [
     document.getElementById('link0-black'),
@@ -155,8 +156,10 @@
   let baseAngleDeg = 0;
   let startPointerAngleDeg = 0;
   let center = { x: 0, y: 0 };
+  let originalOuterPathStr = "";
   const MIN_ANGLE = -90;
   const MAX_ANGLE =  90;
+
   function clampAngle(aDeg) {
     if (aDeg < MIN_ANGLE) return MIN_ANGLE;
     if (aDeg > MAX_ANGLE) return MAX_ANGLE;
@@ -190,12 +193,15 @@
       y: center.y + dx * sinA + dy * cosA,
     };
   }
-  function getOuterDeformedVerts() {
+  // 結線の外側端点だけ微動
+  function getDeformedLinkOuterVerts() {
+    // outerVertsのうち先頭5個を対応
     let deformed = [];
-    for (let i = 0; i < outerVerts.length; i++) {
+    for (let i = 0; i < 5; i++) {
+      // 対応する内殻頂点を回転
       const pIn = rotatePoint(innerVerts[i], lastAngleDeg);
       const pOut = outerVerts[i];
-      const ratio = 0.1;
+      const ratio = 0.1; // 1/10だけ引き寄せ
       deformed.push({
         x: pOut.x + (pIn.x - pOut.x) * ratio,
         y: pOut.y + (pIn.y - pOut.y) * ratio,
@@ -206,15 +212,45 @@
   function makePolygonPath(verts) {
     return verts.map((pt, i) => (i === 0 ? `M ${pt.x},${pt.y}` : `L ${pt.x},${pt.y}`)).join(' ') + ' Z';
   }
+  // 角度差分をラップしてジャンプ防止
+  function getAngleDiff(a, b) {
+    let diff = a - b;
+    while (diff < -180) diff += 360;
+    while (diff > 180) diff -= 360;
+    return diff;
+  }
+  // 外殻も微動
+  function getOuterDeformedVerts() {
+    // 7頂点分
+    let deformed = [];
+    // 5頂点だけ内殻に引き寄せる
+    for (let i = 0; i < 5; i++) {
+      const pIn = rotatePoint(innerVerts[i], lastAngleDeg);
+      const pOut = outerVerts[i];
+      const ratio = 0.1; // 1/10だけ引き寄せ
+      deformed.push({
+        x: pOut.x + (pIn.x - pOut.x) * ratio,
+        y: pOut.y + (pIn.y - pOut.y) * ratio,
+      });
+    }
+    // 残り2頂点はそのまま
+    for (let i = 5; i < 7; i++) {
+      deformed.push({ x: outerVerts[i].x, y: outerVerts[i].y });
+    }
+    return deformed;
+  }
   function applyRotation() {
     rotTarget.style.transform = `rotate(${lastAngleDeg}deg)`;
+    // 外殻も微動
     const deformedOuterVerts = getOuterDeformedVerts();
     const outerPathStr = makePolygonPath(deformedOuterVerts);
     outerOutline.setAttribute('d', outerPathStr);
     outerDotted.setAttribute('d', outerPathStr);
+    // 結線の外側端点だけ微動
+    const deformedLinkOuterVerts = getDeformedLinkOuterVerts();
     for (let i = 0; i < innerVerts.length; i++) {
       const pIn  = rotatePoint(innerVerts[i], lastAngleDeg);
-      const pOut = deformedOuterVerts[i];
+      const pOut = deformedLinkOuterVerts[i];
       const dStr = `M ${pIn.x},${pIn.y} L ${pOut.x},${pOut.y}`;
       linkBlackEls[i].setAttribute('d', dStr);
       linkWhiteEls[i].setAttribute('d', dStr);
@@ -236,7 +272,7 @@
     const svgEl = rotTarget.ownerSVGElement;
     const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
     const currentPointerAngleDeg = angleDegFromCenter(p.x, p.y);
-    let diff = currentPointerAngleDeg - startPointerAngleDeg;
+    let diff = getAngleDiff(currentPointerAngleDeg, startPointerAngleDeg);
     let rawAngle = baseAngleDeg + diff;
     let clamped = clampAngle(rawAngle);
     // ジャンプ防止: 制限端に達したら基準点リセット
@@ -255,12 +291,17 @@
     dragging = false;
     rotTarget.classList.remove('dragging');
   }
+  // 初期描画用に外殻パスを記憶
+  function getOriginalOuterPathStr() {
+    return makePolygonPath(outerVerts);
+  }
   document.addEventListener('pointerdown', onPointerDown);
   document.addEventListener('pointermove', onPointerMove);
   document.addEventListener('pointerup', endDrag);
   document.addEventListener('pointercancel', endDrag);
   document.addEventListener('pointerleave', endDrag);
   updateCenter();
+  originalOuterPathStr = getOriginalOuterPathStr();
   applyRotation();
 })();
 </script>
