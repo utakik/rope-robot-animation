@@ -13,19 +13,16 @@
     place-items: center;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
   }
-
   .stage {
     width: min(84vw, 960px);
     aspect-ratio: 4 / 3;
   }
-
   svg {
     width: 100%;
     height: 100%;
     display: block;
     touch-action: none; /* 指ドラッグ時にブラウザがスクロールしないように */
   }
-
   /* ===== 黒い線（外殻・内殻・放射ライン） ===== */
   .outline {
     fill: none;
@@ -34,16 +31,13 @@
     stroke-linejoin: round;
     stroke-linecap: round;
   }
-
   .divider {
     fill: none;
     stroke: #111;
     stroke-width: 28px;
     stroke-linecap: round;
   }
-
   /* ===== 白い流れる点線（血流） ===== */
-
   .dotted,
   .divider-dotted {
     fill: none;
@@ -53,24 +47,19 @@
     stroke-dasharray: 32px 28px;
     animation: flowOneWay 2.8s linear infinite;
   }
-
   @keyframes flowOneWay {
     0%   { stroke-dashoffset: 0px; }
     100% { stroke-dashoffset: -60px; } /* 32 + 28 */
   }
-
   /* ===== 手で回す対象：内側の五角形グループ ===== */
-
   .inner-rot {
     transform-box: fill-box;
     transform-origin: center;
     cursor: grab;
   }
-
   .inner-rot.dragging {
     cursor: grabbing;
   }
-
   /* 右下のHUD（角度表示） */
   .hud {
     position: fixed;
@@ -87,7 +76,6 @@
     pointer-events: none;
     user-select: none;
   }
-
   .hud .val {
     color: #b2ff9b;
     font-variant-numeric: tabular-nums;
@@ -97,87 +85,59 @@
 <body>
 <div class="stage">
 <svg viewBox="0 0 1200 900"
-
        xmlns="http://www.w3.org/2000/svg"
-
        aria-label="interactive pebble with clamped rotation and stretchy tendons">
 <!-- 外側の七角形（骨格） -->
 <path class="outline"
-
           d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z" />
 <path class="dotted"
-
           d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z" />
 <!-- 内側の五角形（筋肉）。これを回す -->
 <g class="inner-rot" id="rotTarget">
 <path class="outline"
-
             d="M 420,470 520,340 700,370 750,520 600,590 Z" />
 <path class="dotted"
-
             d="M 420,470 520,340 700,370 750,520 600,590 Z" />
 </g>
 <!-- 接続線：黒（太） -->
 <path class="divider"
-
           id="link0-black"
-
           d="M 420,470 L 100,450" />
 <path class="divider"
-
           id="link1-black"
-
           d="M 520,340 L 260,240" />
 <path class="divider"
-
           id="link2-black"
-
           d="M 700,370 L 630,210" />
 <path class="divider"
-
           id="link3-black"
-
           d="M 750,520 L 980,360" />
 <path class="divider"
-
           id="link4-black"
-
           d="M 600,590 L 920,700" />
 <!-- 接続線：白い点線（血管っぽい） -->
 <path class="divider-dotted"
-
           id="link0-white"
-
           d="M 420,470 L 100,450" />
 <path class="divider-dotted"
-
           id="link1-white"
-
           d="M 520,340 L 260,240" />
 <path class="divider-dotted"
-
           id="link2-white"
-
           d="M 700,370 L 630,210" />
 <path class="divider-dotted"
-
           id="link3-white"
-
           d="M 750,520 L 980,360" />
 <path class="divider-dotted"
-
           id="link4-white"
-
           d="M 600,590 L 920,700" />
 </svg>
 </div>
 <div class="hud">
-
   angle
 <div class="val" id="angleVal">0.0°</div>
 </div>
 <script>
-
 (function() {
   const rotTarget = document.getElementById('rotTarget');
   const angleVal  = document.getElementById('angleVal');
@@ -189,7 +149,6 @@
   //    2 -> (700,370) 対外点 (630,210)
   //    3 -> (750,520) 対外点 (980,360)
   //    4 -> (600,590) 対外点 (920,700)
-
   const innerVerts = [
     { x:420, y:470 },
     { x:520, y:340 },
@@ -197,18 +156,14 @@
     { x:750, y:520 },
     { x:600, y:590 },
   ];
-
   const outerVerts = [
     { x:100, y:450 },
     { x:260, y:240 },
     { x:630, y:210 },
     { x:980, y:360 },
     { x:920, y:700 },
-
   ];
-
   // 2. 対応するパス要素を拾う
-
   const linkBlackEls = [
     document.getElementById('link0-black'),
     document.getElementById('link1-black'),
@@ -216,202 +171,115 @@
     document.getElementById('link3-black'),
     document.getElementById('link4-black'),
   ];
-
   const linkWhiteEls = [
-
     document.getElementById('link0-white'),
-
     document.getElementById('link1-white'),
-
     document.getElementById('link2-white'),
-
     document.getElementById('link3-white'),
-
     document.getElementById('link4-white'),
-
   ];
-
   // 回転の状態
-
   let dragging = false;
-
   let lastAngleDeg = 0;          // 現在までの確定角度（制限後）
-
   let baseAngleDeg = 0;          // ドラッグ開始時点の角度
-
   let startPointerAngleDeg = 0;  // ドラッグ開始時に指があった角度
-
   let center = { x: 0, y: 0 };   // 五角形の回転中心
-
   // 回転の上限・下限（度）
-
   const MIN_ANGLE = -90;
-
   const MAX_ANGLE =  90;
-
   function clampAngle(aDeg) {
-
     if (aDeg < MIN_ANGLE) return MIN_ANGLE;
-
     if (aDeg > MAX_ANGLE) return MAX_ANGLE;
-
     return aDeg;
-
   }
-
   // rotTarget のバウンディングボックスから回転中心を出す
-
   function updateCenter() {
-
     const box = rotTarget.getBBox();
-
     center.x = box.x + box.width / 2;
-
     center.y = box.y + box.height / 2;
-
   }
-
   // 画面座標(clientX/Y)をSVGローカル座標に変換
-
   function clientToSvgCoords(svgEl, clientX, clientY) {
-
     const pt = svgEl.createSVGPoint();
-
     pt.x = clientX;
-
     pt.y = clientY;
-
     const p2 = pt.matrixTransform(svgEl.getScreenCTM().inverse());
-
     return { x: p2.x, y: p2.y };
-
   }
-
   // 中心→(px,py) の角度[deg]
-
   function angleDegFromCenter(px, py) {
-
     const dx = px - center.x;
-
     const dy = py - center.y;
-
     return Math.atan2(dy, dx) * 180 / Math.PI;
-
   }
-
   // 与えた角度degだけ内側頂点を回転させた座標を返す
-
   function rotatePoint(pt, deg) {
-
     const rad = deg * Math.PI / 180;
-
     const cosA = Math.cos(rad);
-
     const sinA = Math.sin(rad);
-
     const dx = pt.x - center.x;
-
     const dy = pt.y - center.y;
-
     return {
-
       x: center.x + dx * cosA - dy * sinA,
-
       y: center.y + dx * sinA + dy * cosA,
-
     };
-
   }
-
   // 五角形の見た目と、結線パスを更新する
-
   function applyRotation() {
-
     // グループを回転（CSS transform）
-
     rotTarget.style.transform = `rotate(${lastAngleDeg}deg)`;
-
     // 各内側頂点を回転させて、対応するリンクパス(M ... L ...)を書き直す
-
     for (let i = 0; i < innerVerts.length; i++) {
-
       const pIn  = rotatePoint(innerVerts[i], lastAngleDeg);
-
       const pOut = outerVerts[i];
-
       const dStr = `M ${pIn.x},${pIn.y} L ${pOut.x},${pOut.y}`;
-
       linkBlackEls[i].setAttribute('d', dStr);
-
       linkWhiteEls[i].setAttribute('d', dStr);
-
     }
-
     angleVal.textContent = lastAngleDeg.toFixed(1) + '°';
-
   }
-
   // pointerdown: ドラッグ開始
-
- // ドラッグ開始時、ポインタと五角形の角度差を取得
-let pointerToShapeAngle = 0;
-
-function onPointerDown(e) {
-  dragging = true;
-  rotTarget.classList.add('dragging');
-  const svgEl = rotTarget.ownerSVGElement;
-  updateCenter();
-  const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
-  const pointerAngle = angleDegFromCenter(p.x, p.y);
-  pointerToShapeAngle = pointerAngle - lastAngleDeg; // ポインタと五角形の角度差
-  e.preventDefault();
-}
-
-function onPointerMove(e) {
-  if (!dragging) return;
-  const svgEl = rotTarget.ownerSVGElement;
-  const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
-  const pointerAngle = angleDegFromCenter(p.x, p.y);
-  // ポインタの現在角度から、ドラッグ開始時の差分を引く
-  let rawAngle = pointerAngle - pointerToShapeAngle;
-  lastAngleDeg = clampAngle(rawAngle);
-  applyRotation();
-  e.preventDefault();
-}
-
-  // pointerup系: ドラッグ終了
-
-  function endDrag() {
-
-    if (!dragging) return;
-
-    dragging = false;
-
-    rotTarget.classList.remove('dragging');
-
+  function onPointerDown(e) {
+    dragging = true;
+    rotTarget.classList.add('dragging');
+    const svgEl = rotTarget.ownerSVGElement;
+    updateCenter(); // いまの中心を更新
+    // 指の位置をSVG座標系に
+    const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
+    startPointerAngleDeg = angleDegFromCenter(p.x, p.y);
+    baseAngleDeg = lastAngleDeg;
+    e.preventDefault();
   }
-
+  // pointermove: ドラッグ中は角度更新
+  function onPointerMove(e) {
+    if (!dragging) return;
+    const svgEl = rotTarget.ownerSVGElement;
+    const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
+    const currentPointerAngleDeg = angleDegFromCenter(p.x, p.y);
+    const diff = currentPointerAngleDeg - startPointerAngleDeg;
+    // 累積角度候補
+    const rawAngle = baseAngleDeg + diff;
+    // 制限角度にクランプ
+    lastAngleDeg = clampAngle(rawAngle);
+    applyRotation();
+    e.preventDefault();
+  }
+  // pointerup系: ドラッグ終了
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    rotTarget.classList.remove('dragging');
+  }
   // イベント登録
-
   document.addEventListener('pointerdown', onPointerDown);
-
   document.addEventListener('pointermove', onPointerMove);
-
   document.addEventListener('pointerup', endDrag);
-
   document.addEventListener('pointercancel', endDrag);
-
   document.addEventListener('pointerleave', endDrag);
-
   // 初期描画
-
   updateCenter();
-
   applyRotation();
-
 })();
 </script>
 </body>
 </html>
-SVG namespace
- 
