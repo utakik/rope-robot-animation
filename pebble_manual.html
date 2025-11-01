@@ -3,210 +3,316 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>pebble_min_base</title>
+<title>pebble_min_base_accumulate</title>
 <style>
+
   html, body {
+
     margin: 0;
+
     background: #f6f5f2;
+
     height: 100%;
+
     display: grid;
+
     place-items: center;
+
     font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
   }
+
   .stage {
+
     width: min(84vw, 960px);
+
     aspect-ratio: 4 / 3;
+
     background: transparent;
+
   }
+
   svg {
+
     width: 100%;
+
     height: 100%;
+
     display: block;
-    /* これが大事。iPadでドラッグした時に画面がスクロールしなくなる */
+
+    /* これがあるからiPadでドラッグしても画面そのものがスクロールしない */
+
     touch-action: none;
+
   }
 
   .outline {
+
     fill: none;
+
     stroke: #111;
+
     stroke-width: 28px;
+
     stroke-linejoin: round;
+
     stroke-linecap: round;
+
   }
+
   .dotted {
+
     fill: none;
+
     stroke: #fff;
+
     stroke-width: 10px;
+
     stroke-linecap: butt;
+
     stroke-dasharray: 32px 28px;
+
   }
 
   .hud {
+
     position: fixed;
+
     right: .75rem;
+
     bottom: .75rem;
+
     background: rgba(0,0,0,.65);
+
     color: #fff;
+
     font-size: 12px;
+
     line-height: 1.4;
+
     font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+
     border-radius: 8px;
+
     padding: .5rem .6rem;
+
     min-width: 7rem;
+
     user-select: none;
+
     pointer-events: none;
+
   }
+
   .hud .val {
+
     color: #b2ff9b;
+
     font-variant-numeric: tabular-nums;
+
     text-align: right;
+
   }
 </style>
 </head>
 <body>
 <div class="stage">
-  <svg id="pebbleSvg" viewBox="0 0 1200 900" aria-label="rotatable inner shape">
-    <!-- 外側の七角形（固定。とりあえず回さない） -->
-    <path class="outline"
-          d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z"/>
-    <path class="dotted"
-          stroke="#fff"
-          d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z"/>
+<svg id="pebbleSvg" viewBox="0 0 1200 900" aria-label="rotatable inner shape">
+<!-- 外側の七角形（固定） -->
+<path class="outline"
 
-    <!-- 回す対象：内側の五角形グループ -->
-    <g id="innerGroup">
-      <path class="outline"
+          d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z"/>
+<path class="dotted"
+
+          d="M 100,450 260,240 630,210 980,360 920,700 540,740 220,640 Z"/>
+<!-- 回す対象：内側の五角形 -->
+<g id="innerGroup">
+<path class="outline"
+
             d="M 420,470 520,340 700,370 750,520 600,590 Z"/>
-      <path class="dotted"
+<path class="dotted"
+
             d="M 420,470 520,340 700,370 750,520 600,590 Z"/>
-    </g>
-  </svg>
+</g>
+</svg>
 </div>
-
 <div class="hud">
+
   angle
-  <div class="val" id="angleVal">0.0°</div>
+<div class="val" id="angleVal">0.0°</div>
 </div>
-
 <script>
-(function(){
-  const svg = document.getElementById("pebbleSvg");
-  const innerGroup = document.getElementById("innerGroup");
-  const angleVal = document.getElementById("angleVal");
 
-  // いまの回転角度（見た目）
+(function(){
+
+  const svg        = document.getElementById("pebbleSvg");
+
+  const innerGroup = document.getElementById("innerGroup");
+
+  const angleVal   = document.getElementById("angleVal");
+
+  // 現在の回転角（見た目）
+
   let currentAngle = 0;
 
-  // ドラッグ開始時点での角度（＝基準）
-  let startAngleShape = 0;
+  // ドラッグ中か？
 
-  // ドラッグ開始時点での「指の角度」
-  let startAnglePointer = 0;
-
-  // いまドラッグ中か？
   let dragging = false;
 
-  // 回転の中心。最初に決めたら固定
+  // 回転の中心。最初に算出して固定
+
   let center = { x: 0, y: 0 };
+
   let centerReady = false;
 
-  // 角度差が±180度を超えても暴れないように正規化する
-  // 例: 179° と -179° は差が -2° になる
+  // 直前フレームでの「指の角度」
+
+  let prevPointerAngle = 0;
+
+  // 角度差を -180〜+180 の間に丸める
+
+  // これで179°→-179°のときも「差は-2°」みたいに扱える
+
   function angleDiff(aDeg, bDeg) {
+
     let diff = aDeg - bDeg;
+
     diff = ((diff + 180) % 360) - 180;
+
     return diff;
+
   }
 
-  // 回転の中心を一度だけ決める
+  // 一度だけ回転中心を決める
+
   function initCenterIfNeeded() {
+
     if (centerReady) return;
+
     const bbox = innerGroup.getBBox();
+
     center.x = bbox.x + bbox.width / 2;
+
     center.y = bbox.y + bbox.height / 2;
+
     centerReady = true;
+
   }
 
-  // 画面上の指の位置をSVG座標に変換
+  // 画面座標→SVG座標
+
   function clientToSvgXY(evt) {
+
     const pt = svg.createSVGPoint();
+
     pt.x = evt.clientX;
+
     pt.y = evt.clientY;
-    const inv = svg.getScreenCTM().inverse();
-    const local = pt.matrixTransform(inv);
+
+    const local = pt.matrixTransform(svg.getScreenCTM().inverse());
+
     return { x: local.x, y: local.y };
+
   }
 
-  // 中心から見た指の角度（度数法）
+  // 中心から見た指の角度[deg]
+
   function angleFromCenter(px, py) {
+
     const dx = px - center.x;
+
     const dy = py - center.y;
+
     return Math.atan2(dy, dx) * 180 / Math.PI;
+
   }
 
-  // 実際に描画に反映
+  // 描画反映
+
   function applyRotation() {
-    // 中心(cx, cy)を軸に回転させる
+
     innerGroup.setAttribute(
+
       "transform",
+
       `rotate(${currentAngle}, ${center.x}, ${center.y})`
+
     );
+
     angleVal.textContent = currentAngle.toFixed(1) + "°";
+
   }
 
   function onPointerDown(e) {
+
     initCenterIfNeeded();
 
     dragging = true;
 
-    // ドラッグ開始時の形の角度
-    startAngleShape = currentAngle;
-
-    // ドラッグ開始時の指の角度
     const p = clientToSvgXY(e);
-    startAnglePointer = angleFromCenter(p.x, p.y);
 
-    // デフォルトのスクロールとかテキスト選択を止める
-    e.preventDefault();
+    prevPointerAngle = angleFromCenter(p.x, p.y); // ここを「基準」にするのは1回だけ
+
+    e.preventDefault(); // iPadでの画面移動防止
+
   }
 
   function onPointerMove(e) {
+
     if (!dragging) return;
 
     const p = clientToSvgXY(e);
-    const nowPointerAngle = angleFromCenter(p.x, p.y);
 
-    // 指の回転量（正規化済み）
-    const delta = angleDiff(nowPointerAngle, startAnglePointer);
+    const nowAngle = angleFromCenter(p.x, p.y);
 
-    // 形の回転 = 開始角度 + 指の回転量
-    let nextAngle = startAngleShape + delta;
+    // 直前フレームとの差分だけ足す（ここが前と違う）
 
-    // ±90度に制限
-    if (nextAngle < -90) nextAngle = -90;
-    if (nextAngle >  90) nextAngle =  90;
+    const delta = angleDiff(nowAngle, prevPointerAngle);
 
-    currentAngle = nextAngle;
+    // 回転角にその差分を加算
+
+    currentAngle += delta;
+
+    // 次のフレーム用に今の指角度を記憶
+
+    prevPointerAngle = nowAngle;
+
+    // 限界 ±90°
+
+    if (currentAngle < -90) currentAngle = -90;
+
+    if (currentAngle >  90) currentAngle =  90;
+
     applyRotation();
 
     e.preventDefault();
+
   }
 
   function endDrag() {
+
     dragging = false;
+
   }
 
-  // pointerイベント
   svg.addEventListener("pointerdown", onPointerDown);
+
   svg.addEventListener("pointermove", onPointerMove);
+
   svg.addEventListener("pointerup", endDrag);
+
   svg.addEventListener("pointercancel", endDrag);
+
   svg.addEventListener("pointerleave", endDrag);
 
   // 初期表示
+
   initCenterIfNeeded();
+
   applyRotation();
+
 })();
 </script>
 </body>
 </html>
+ 
