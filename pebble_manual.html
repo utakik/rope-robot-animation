@@ -219,38 +219,16 @@
     while (diff > 180) diff -= 360;
     return diff;
   }
-  // 外殻も微動
-  function getOuterDeformedVerts() {
-    // 7頂点分
-    let deformed = [];
-    // 5頂点だけ内殻に引き寄せる
-    for (let i = 0; i < 5; i++) {
-      const pIn = rotatePoint(innerVerts[i], lastAngleDeg);
-      const pOut = outerVerts[i];
-      const ratio = 0.1; // 1/10だけ引き寄せ
-      deformed.push({
-        x: pOut.x + (pIn.x - pOut.x) * ratio,
-        y: pOut.y + (pIn.y - pOut.y) * ratio,
-      });
-    }
-    // 残り2頂点はそのまま
-    for (let i = 5; i < 7; i++) {
-      deformed.push({ x: outerVerts[i].x, y: outerVerts[i].y });
-    }
-    return deformed;
-  }
   function applyRotation() {
     rotTarget.style.transform = `rotate(${lastAngleDeg}deg)`;
-    // 外殻も微動
-    const deformedOuterVerts = getOuterDeformedVerts();
-    const outerPathStr = makePolygonPath(deformedOuterVerts);
-    outerOutline.setAttribute('d', outerPathStr);
-    outerDotted.setAttribute('d', outerPathStr);
+    // 外殻は元の7角形のままで描画
+    outerOutline.setAttribute('d', originalOuterPathStr);
+    outerDotted.setAttribute('d', originalOuterPathStr);
     // 結線の外側端点だけ微動
-    const deformedLinkOuterVerts = getDeformedLinkOuterVerts();
+    const deformedOuterVerts = getDeformedLinkOuterVerts();
     for (let i = 0; i < innerVerts.length; i++) {
       const pIn  = rotatePoint(innerVerts[i], lastAngleDeg);
-      const pOut = deformedLinkOuterVerts[i];
+      const pOut = deformedOuterVerts[i];
       const dStr = `M ${pIn.x},${pIn.y} L ${pOut.x},${pOut.y}`;
       linkBlackEls[i].setAttribute('d', dStr);
       linkWhiteEls[i].setAttribute('d', dStr);
