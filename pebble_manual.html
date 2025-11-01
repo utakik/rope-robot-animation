@@ -233,7 +233,7 @@
     rotTarget.style.transform = `rotate(${lastAngleDeg}deg)`;
 
     // 外殻（七角形）を少しだけ回転（例：1/5の角度）
-    const outerAngle = lastAngleDeg / 5; // 1/5倍。1/10なら /10
+    const outerAngle = lastAngleDeg / 10; // 1/5倍。1/10なら /10
     outerGroup.style.transform = `rotate(${outerAngle}deg)`;
 
     // 各内側頂点を回転させて、対応するリンクパス(M ... L ...)を書き直す
