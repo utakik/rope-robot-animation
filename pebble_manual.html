@@ -21,7 +21,7 @@
     width: 100%;
     height: 100%;
     display: block;
-    touch-action: none; /* 指ドラッグ時にブラウザがスクロールしないように */
+    touch-action: none;
   }
   .outline {
     fill: none;
@@ -190,13 +190,12 @@
       y: center.y + dx * sinA + dy * cosA,
     };
   }
-  // 外殻の頂点を内殻に引き寄せて微動させる
   function getOuterDeformedVerts() {
     let deformed = [];
     for (let i = 0; i < outerVerts.length; i++) {
       const pIn = rotatePoint(innerVerts[i], lastAngleDeg);
       const pOut = outerVerts[i];
-      const ratio = 0.1; // 1/10だけ引き寄せ
+      const ratio = 0.1;
       deformed.push({
         x: pOut.x + (pIn.x - pOut.x) * ratio,
         y: pOut.y + (pIn.y - pOut.y) * ratio,
@@ -209,13 +208,10 @@
   }
   function applyRotation() {
     rotTarget.style.transform = `rotate(${lastAngleDeg}deg)`;
-    // 外殻頂点を変形
     const deformedOuterVerts = getOuterDeformedVerts();
-    // 外殻パス（outline, dotted）を変形した座標で描画
     const outerPathStr = makePolygonPath(deformedOuterVerts);
     outerOutline.setAttribute('d', outerPathStr);
     outerDotted.setAttribute('d', outerPathStr);
-    // 結線も「変形後の外殻頂点」で更新
     for (let i = 0; i < innerVerts.length; i++) {
       const pIn  = rotatePoint(innerVerts[i], lastAngleDeg);
       const pOut = deformedOuterVerts[i];
@@ -240,9 +236,17 @@
     const svgEl = rotTarget.ownerSVGElement;
     const p = clientToSvgCoords(svgEl, e.clientX, e.clientY);
     const currentPointerAngleDeg = angleDegFromCenter(p.x, p.y);
-    const diff = currentPointerAngleDeg - startPointerAngleDeg;
-    const rawAngle = baseAngleDeg + diff;
-    lastAngleDeg = clampAngle(rawAngle);
+    let diff = currentPointerAngleDeg - startPointerAngleDeg;
+    let rawAngle = baseAngleDeg + diff;
+    let clamped = clampAngle(rawAngle);
+    // ジャンプ防止: 制限端に達したら基準点リセット
+    if (clamped !== rawAngle) {
+      baseAngleDeg = clamped;
+      startPointerAngleDeg = currentPointerAngleDeg;
+      lastAngleDeg = clamped;
+    } else {
+      lastAngleDeg = clamped;
+    }
     applyRotation();
     e.preventDefault();
   }
