@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>pebble_outer_follow_links_A</title>
+<title>pebble_live</title>
 <style>
   html, body {
     margin: 0;
@@ -26,7 +26,7 @@
     display: block;
   }
 
-  /* 太い黒い線（外郭と同じ表現） */
+  /* 太い黒い線（本体） */
   .outlineStroke {
     fill: none;
     stroke: #111;
@@ -35,13 +35,22 @@
     stroke-linecap: round;
   }
 
-  /* 白い点線（外郭と同じ表現） */
+  /* 白い点線（血流）。ここにアニメーションを与える */
   .dottedStroke {
     fill: none;
     stroke: #fff;
     stroke-width: 10px;
     stroke-linecap: butt;
     stroke-dasharray: 32px 28px;
+    animation: flowOneWay 2.8s linear infinite;
+  }
+
+  /* 血流アニメーション:
+     dashoffsetをマイナス方向に回し続けることで
+     白い四角が一定方向へ流れていくように見える */
+  @keyframes flowOneWay {
+    0%   { stroke-dashoffset: 0px;   }
+    100% { stroke-dashoffset: -60px; } /* 32+28=60 */
   }
 
   .hud {
@@ -66,7 +75,7 @@
 </head>
 <body>
 <div class="stage">
-  <svg id="pebbleSvg" viewBox="0 0 1200 900" aria-label="pebble with tendons">
+  <svg id="pebbleSvg" viewBox="0 0 1200 900" aria-label="pebble with animated tendons">
     <!-- 外側の七角形グループ：外殻。少しだけ回る -->
     <g id="outerGroup">
       <path class="outlineStroke"
@@ -87,21 +96,20 @@
             d="M420,470 520,340 700,370 750,520 600,590Z"/>
     </g>
 
-    <!-- 結線（腱）: 5本分。黒と白を重ねて同じ見た目にする -->
+    <!-- 結線（腱）: 黒と白の2枚重ねで5本 -->
     <g id="linksLayer">
-      <!-- link0 -->
       <path class="outlineStroke" id="link0Black" d="M0,0 L0,0"/>
       <path class="dottedStroke"  id="link0White" d="M0,0 L0,0"/>
-      <!-- link1 -->
+
       <path class="outlineStroke" id="link1Black" d="M0,0 L0,0"/>
       <path class="dottedStroke"  id="link1White" d="M0,0 L0,0"/>
-      <!-- link2 -->
+
       <path class="outlineStroke" id="link2Black" d="M0,0 L0,0"/>
       <path class="dottedStroke"  id="link2White" d="M0,0 L0,0"/>
-      <!-- link3 -->
+
       <path class="outlineStroke" id="link3Black" d="M0,0 L0,0"/>
       <path class="dottedStroke"  id="link3White" d="M0,0 L0,0"/>
-      <!-- link4 -->
+
       <path class="outlineStroke" id="link4Black" d="M0,0 L0,0"/>
       <path class="dottedStroke"  id="link4White" d="M0,0 L0,0"/>
     </g>
@@ -124,7 +132,7 @@
   const outerValEl   = document.getElementById("outerVal");
   const gainValEl    = document.getElementById("gainVal");
 
-  // 結線用の黒・白パスを配列で持つ
+  // 結線用のパス要素
   const linkBlackEls = [
     document.getElementById("link0Black"),
     document.getElementById("link1Black"),
@@ -140,49 +148,45 @@
     document.getElementById("link4White"),
   ];
 
-  // 幾何データ: 五角形の元頂点(内側)
+  // 五角形（内側）の元頂点
   const innerVerts = [
-    { x:420, y:470 },
-    { x:520, y:340 },
-    { x:700, y:370 },
-    { x:750, y:520 },
-    { x:600, y:590 },
+    { x:420, y:470 }, // 0
+    { x:520, y:340 }, // 1
+    { x:700, y:370 }, // 2
+    { x:750, y:520 }, // 3
+    { x:600, y:590 }, // 4
   ];
 
-  // 七角形の元頂点(外側)
+  // 七角形（外側）の元頂点
   const outerVerts = [
-    { x:100, y:450 },
-    { x:260, y:240 },
-    { x:630, y:210 },
-    { x:980, y:360 },
-    { x:920, y:700 },
-    { x:540, y:740 },
-    { x:220, y:640 },
+    { x:100, y:450 }, // 0
+    { x:260, y:240 }, // 1
+    { x:630, y:210 }, // 2
+    { x:980, y:360 }, // 3
+    { x:920, y:700 }, // 4
+    { x:540, y:740 }, // 5
+    { x:220, y:640 }, // 6
   ];
 
-  // A案の対応（まっすぐ系）
-  // 五角形は5点、七角形は7点あるけど、外側の最初の5点を対応に使う
-  //   inner[0] -> outer[0]
-  //   inner[1] -> outer[1]
-  //   inner[2] -> outer[2]
-  //   inner[3] -> outer[3]
-  //   inner[4] -> outer[4]
-  const mapping = [6, 1, 3, 4, 5];
+  // あなたが調整した対応を反映（例：左下の点を右下側に引っ張る等）
+  // inner[i] -> outer[mapping[i]]
+  // 必要に応じてここだけあとで自由に並べ替えればOK
+  const mapping = [4, 1, 2, 3, 5];
+  //  meaning:
+  //  inner[0]→outer[4]
+  //  inner[1]→outer[1]
+  //  inner[2]→outer[2]
+  //  inner[3]→outer[3]
+  //  inner[4]→outer[5]
 
   // 状態
   let dragging = false;
-
-  // 内側の回転角（ユーザーが動かす主角）
-  let innerAngle = 0;
-
-  // ポインタ角度（前フレーム）
-  let prevPointerAngle = 0;
-
-  // 回転の中心（五角形の中心）。一度計算したら固定
-  let center = {x:0,y:0};
+  let innerAngle = 0;           // ユーザーが回す角度（主体）
+  let prevPointerAngle = 0;     // 前フレームの指角度
+  let center = {x:0,y:0};       // 回転の中心（五角形の中心）
   let centerReady = false;
 
-  // 角度差を安定化：±180°の壁を飛び越えたときに小さい差に丸める
+  // 角度差を安定化：±180°を跨いだ時の急ジャンプを抑える
   function angleDelta(nowDeg, prevDeg){
     let diff = nowDeg - prevDeg;
     if (diff > 180)  diff -= 360;
@@ -190,7 +194,7 @@
     return diff;
   }
 
-  // 回転中心を一度だけ決める（内側グループのBBoxの中心）
+  // 回転中心を一度だけ計算
   function initCenterIfNeeded() {
     if (centerReady) return;
     const bbox = innerGroup.getBBox();
@@ -199,7 +203,7 @@
     centerReady = true;
   }
 
-  // 画面座標→SVG座標
+  // 画面座標→SVGローカル座標
   function clientToSvgXY(evt) {
     const pt = svg.createSVGPoint();
     pt.x = evt.clientX;
@@ -214,7 +218,7 @@
     return Math.atan2(dy, dx) * 180 / Math.PI;
   }
 
-  // 任意の点ptを、centerまわりにdeg度回転させる
+  // 任意の点ptを center まわりに deg 度回転
   function rotatePoint(pt, deg){
     const rad = deg * Math.PI / 180;
     const cosA = Math.cos(rad), sinA = Math.sin(rad);
@@ -226,34 +230,38 @@
     };
   }
 
-  // 外殻の角度を算出
+  // 外殻の角度：内側につられて少しだけ回る
   function calcOuterAngle(inner){
-    // 内側の角度の1/15だけ反応、±5°で制限
-    let out = inner * (1/15);
+    let out = inner * (1/15); // 内側の1/15くらい
     if (out < -5) out = -5;
     if (out >  5) out =  5;
     return out;
   }
 
-  // 画面の状態を全部更新する
+  // 今の角度に応じて、指の入力をどれだけ通すか
+  // 端(±90°)に近いほど動きが鈍くなる：二次関数ゲイン
+  function currentGain(angle){
+    const t = Math.min(Math.abs(angle)/90, 1); // 0..1
+    return 1 - t*t; // 中央=1, 端=0
+  }
+
+  // 描画更新
   function applyVisual(gainForHud){
     const outerAngle = calcOuterAngle(innerAngle);
 
-    // 内側の回転（大きく動く）
+    // 内側の回転
     innerGroup.setAttribute(
       "transform",
       `rotate(${innerAngle},${center.x},${center.y})`
     );
 
-    // 外側の回転（少しだけつられる）
+    // 外側の回転
     outerGroup.setAttribute(
       "transform",
       `rotate(${outerAngle},${center.x},${center.y})`
     );
 
-    // 結線を更新：
-    // 五角形の各頂点を innerAngle で回転
-    // 七角形の対応頂点を outerAngle で回転
+    // 結線更新
     for (let i = 0; i < mapping.length; i++) {
       const innerIdx = i;
       const outerIdx = mapping[i];
@@ -267,14 +275,11 @@
       linkWhiteEls[i].setAttribute("d", dStr);
     }
 
-    // HUD（内部角度、外側角度、ゲイン=柔らかさ）
-    const t = Math.min(Math.abs(innerAngle)/90, 1); // 0〜1: 端に近いほど1
-    const gainNow = 1 - t*t;                        // 二次関数で硬くなる
+    // HUD更新
+    const gNow = gainForHud !== undefined ? gainForHud : currentGain(innerAngle);
     innerValEl.textContent = innerAngle.toFixed(1) + "°";
     outerValEl.textContent = outerAngle.toFixed(2) + "°";
-    gainValEl.textContent  = (gainForHud !== undefined
-                              ? gainForHud
-                              : gainNow).toFixed(2);
+    gainValEl.textContent  = gNow.toFixed(2);
   }
 
   function onPointerDown(e){
@@ -284,7 +289,7 @@
     const p = clientToSvgXY(e);
     prevPointerAngle = pointerAngleDeg(p.x, p.y);
 
-    e.preventDefault();
+    e.preventDefault(); // iPadの画面暴走止め
   }
 
   function onPointerMove(e){
@@ -293,19 +298,18 @@
     const p = clientToSvgXY(e);
     const nowA = pointerAngleDeg(p.x, p.y);
 
-    // 指の回転の変化量（小さい差分）
+    // 指の小さな変化量（ジャンプ補正済み）
     let d = angleDelta(nowA, prevPointerAngle);
     prevPointerAngle = nowA;
 
-    // 角度が端に近いほど入力を鈍くする（二次関数ゲイン）
-    const t = Math.min(Math.abs(innerAngle)/90, 1); // 0..1
-    const gain = 1 - t*t;                           // 中央=1, 端=0
+    // 角度の端に近づくと重くなるゲイン
+    const gain = currentGain(innerAngle);
     d = d * gain;
 
-    // 回転を更新
+    // 回転角を更新
     innerAngle += d;
 
-    // 絶対的な物理限界
+    // 絶対ストッパー（物理的リミット）
     if (innerAngle < -90) innerAngle = -90;
     if (innerAngle >  90) innerAngle =  90;
 
