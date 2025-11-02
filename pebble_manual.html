@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>pebble_outer_follow_resistance</title>
+<title>pebble_outer_follow_links</title>
 <style>
   html, body {
     margin: 0;
@@ -26,7 +26,8 @@
     display: block;
   }
 
-  .outline {
+  /* 太い黒い線（輪郭と同じ太さ・キャップ） */
+  .outlineStroke {
     fill: none;
     stroke: #111;
     stroke-width: 28px;
@@ -34,7 +35,8 @@
     stroke-linecap: round;
   }
 
-  .dotted {
+  /* 白い点線（血管っぽいやつと同じ） */
+  .dottedStroke {
     fill: none;
     stroke: #fff;
     stroke-width: 10px;
@@ -53,7 +55,7 @@
     border-radius: 6px;
     line-height: 1.4;
     font-size: 12px;
-    min-width: 8rem;
+    min-width: 9rem;
     user-select: none;
     pointer-events: none;
   }
@@ -64,21 +66,44 @@
 </head>
 <body>
 <div class="stage">
-  <svg id="pebbleSvg" viewBox="0 0 1200 900">
-    <!-- 外側の七角形（少しだけ追従させる） -->
+  <svg id="pebbleSvg" viewBox="0 0 1200 900" aria-label="pebble with tendons">
+    <!-- 外側の七角形をグループ化：これも少し回る -->
     <g id="outerGroup">
-      <path class="outline"
+      <path class="outlineStroke"
+            id="outerOutlinePath"
             d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
-      <path class="dotted"
+      <path class="dottedStroke"
+            id="outerDottedPath"
             d="M100,450 260,240 630,210 980,360 920,700 540,740 220,640Z"/>
     </g>
 
-    <!-- 内側の五角形（メインで回す） -->
+    <!-- 内側の五角形（メインで回る） -->
     <g id="innerGroup">
-      <path class="outline"
+      <path class="outlineStroke"
+            id="innerOutlinePath"
             d="M420,470 520,340 700,370 750,520 600,590Z"/>
-      <path class="dotted"
+      <path class="dottedStroke"
+            id="innerDottedPath"
             d="M420,470 520,340 700,370 750,520 600,590Z"/>
+    </g>
+
+    <!-- 結線（腱）: 5本。それぞれ黒と白を重ねる -->
+    <g id="linksLayer">
+      <!-- link0 -->
+      <path class="outlineStroke" id="link0Black" d="M0,0 L0,0"/>
+      <path class="dottedStroke"  id="link0White" d="M0,0 L0,0"/>
+      <!-- link1 -->
+      <path class="outlineStroke" id="link1Black" d="M0,0 L0,0"/>
+      <path class="dottedStroke"  id="link1White" d="M0,0 L0,0"/>
+      <!-- link2 -->
+      <path class="outlineStroke" id="link2Black" d="M0,0 L0,0"/>
+      <path class="dottedStroke"  id="link2White" d="M0,0 L0,0"/>
+      <!-- link3 -->
+      <path class="outlineStroke" id="link3Black" d="M0,0 L0,0"/>
+      <path class="dottedStroke"  id="link3White" d="M0,0 L0,0"/>
+      <!-- link4 -->
+      <path class="outlineStroke" id="link4Black" d="M0,0 L0,0"/>
+      <path class="dottedStroke"  id="link4White" d="M0,0 L0,0"/>
     </g>
   </svg>
 </div>
@@ -91,28 +116,72 @@
 
 <script>
 (function(){
-  const svg        = document.getElementById("pebbleSvg");
-  const innerGroup = document.getElementById("innerGroup");
-  const outerGroup = document.getElementById("outerGroup");
+  const svg          = document.getElementById("pebbleSvg");
+  const innerGroup   = document.getElementById("innerGroup");
+  const outerGroup   = document.getElementById("outerGroup");
 
-  const innerValEl = document.getElementById("innerVal");
-  const outerValEl = document.getElementById("outerVal");
-  const gainValEl  = document.getElementById("gainVal");
+  const innerValEl   = document.getElementById("innerVal");
+  const outerValEl   = document.getElementById("outerVal");
+  const gainValEl    = document.getElementById("gainVal");
+
+  // link要素
+  const linkBlackEls = [
+    document.getElementById("link0Black"),
+    document.getElementById("link1Black"),
+    document.getElementById("link2Black"),
+    document.getElementById("link3Black"),
+    document.getElementById("link4Black"),
+  ];
+  const linkWhiteEls = [
+    document.getElementById("link0White"),
+    document.getElementById("link1White"),
+    document.getElementById("link2White"),
+    document.getElementById("link3White"),
+    document.getElementById("link4White"),
+  ];
+
+  // 幾何データ: 五角形の元頂点 (inner)
+  const innerVerts = [
+    { x:420, y:470 },
+    { x:520, y:340 },
+    { x:700, y:370 },
+    { x:750, y:520 },
+    { x:600, y:590 },
+  ];
+
+  // 七角形の元頂点 (outer)
+  const outerVerts = [
+    { x:100, y:450 },
+    { x:260, y:240 },
+    { x:630, y:210 },
+    { x:980, y:360 },
+    { x:920, y:700 },
+    { x:540, y:740 },
+    { x:220, y:640 },
+  ];
+
+  // ねじれマッピング（B案）
+  // inner[0] -> outer[0]
+  // inner[1] -> outer[2]
+  // inner[2] -> outer[4]
+  // inner[3] -> outer[5]
+  // inner[4] -> outer[1]
+  const mapping = [0, 2, 4, 5, 1];
 
   // 状態
   let dragging = false;
 
-  // 内側の角度（ユーザー操作の結果。見た目）
+  // 内側（五角形）の角度。±90で制限される主角
   let innerAngle = 0;
 
-  // 前フレームのポインタ角度
+  // ポインタ角度の前フレーム値
   let prevPointerAngle = 0;
 
-  // 回転中心
+  // 回転中心（五角形の中心）。一度だけ決める
   let center = {x:0,y:0};
   let centerReady = false;
 
-  // 角度の差分を安定化（179→-179を-2として扱う）
+  // 角度差を安定化：179→-179を-2にする
   function angleDelta(nowDeg, prevDeg){
     let diff = nowDeg - prevDeg;
     if (diff > 180)  diff -= 360;
@@ -120,7 +189,7 @@
     return diff;
   }
 
-  // 回転中心を一度だけ測る（五角形のBBoxの中心）
+  // 回転中心
   function initCenterIfNeeded() {
     if (centerReady) return;
     const bbox = innerGroup.getBBox();
@@ -129,7 +198,7 @@
     centerReady = true;
   }
 
-  // 画面座標→SVGローカル座標
+  // 画面座標→SVGローカル
   function clientToSvgXY(evt) {
     const pt = svg.createSVGPoint();
     pt.x = evt.clientX;
@@ -137,43 +206,74 @@
     return pt.matrixTransform(svg.getScreenCTM().inverse());
   }
 
-  // 中心から見た指の角度[deg]
+  // 中心→点 の角度[deg]
   function pointerAngleDeg(px, py) {
     const dx = px - center.x;
     const dy = py - center.y;
     return Math.atan2(dy, dx) * 180 / Math.PI;
   }
 
-  // 描画反映
-  function applyRotation(gainForHud) {
-    // 内側：そのまま innerAngle
+  // 任意の点ptを、ある角度degだけcenterまわりに回転して返す
+  function rotatePoint(pt, deg){
+    const rad = deg * Math.PI / 180;
+    const cosA = Math.cos(rad), sinA = Math.sin(rad);
+    const dx = pt.x - center.x;
+    const dy = pt.y - center.y;
+    return {
+      x: center.x + dx * cosA - dy * sinA,
+      y: center.y + dx * sinA + dy * cosA
+    };
+  }
+
+  // outerAngleを計算する（外殻がわずかに追従する）
+  function calcOuterAngle(inner){
+    // 内側の角度の1/15だけ反応、さらに±5°でクリップ
+    let out = inner * (1/15);
+    if (out < -5) out = -5;
+    if (out >  5) out =  5;
+    return out;
+  }
+
+  // 描画更新：形の回転と結線の更新
+  function applyVisual(gainForHud){
+    // 回転角
+    const outerAngle = calcOuterAngle(innerAngle);
+
+    // 1. グループ回転（見た目用）
     innerGroup.setAttribute(
       "transform",
       `rotate(${innerAngle},${center.x},${center.y})`
     );
-
-    // 外側：内側の角度の1/15だけ追従。ただし ±5°に制限
-    let outerAngle = innerAngle * (1/15);
-    if (outerAngle < -5) outerAngle = -5;
-    if (outerAngle >  5) outerAngle =  5;
     outerGroup.setAttribute(
       "transform",
       `rotate(${outerAngle},${center.x},${center.y})`
     );
 
-    // HUD
+    // 2. 結線のdを更新
+    //    innerの各頂点をinnerAngleで回した位置、
+    //    outerの対応頂点をouterAngleで回した位置を結ぶ
+    for (let i = 0; i < mapping.length; i++) {
+      const innerIdx = i;
+      const outerIdx = mapping[i];
+
+      const pIn  = rotatePoint(innerVerts[innerIdx],  innerAngle);
+      const pOut = rotatePoint(outerVerts[outerIdx], outerAngle);
+
+      const dStr = `M ${pIn.x},${pIn.y} L ${pOut.x},${pOut.y}`;
+
+      linkBlackEls[i].setAttribute("d", dStr);
+      linkWhiteEls[i].setAttribute("d", dStr);
+    }
+
+    // 3. HUD更新
+    const t = Math.min(Math.abs(innerAngle)/90, 1);
+    const gainNow = 1 - t*t; // 抵抗ゲイン（中心で1 / 端で0）
+
     innerValEl.textContent = innerAngle.toFixed(1) + "°";
     outerValEl.textContent = outerAngle.toFixed(2) + "°";
-
-    // gain（抵抗の強さの表示用）
-    if (gainForHud !== undefined) {
-      gainValEl.textContent = gainForHud.toFixed(2);
-    } else {
-      // 最初の表示
-      const t0 = Math.min(Math.abs(innerAngle)/90, 1);
-      const g0 = 1 - t0*t0;
-      gainValEl.textContent = g0.toFixed(2);
-    }
+    gainValEl.textContent  = (gainForHud !== undefined
+                              ? gainForHud
+                              : gainNow).toFixed(2);
   }
 
   function onPointerDown(e){
@@ -192,33 +292,23 @@
     const p = clientToSvgXY(e);
     const nowA = pointerAngleDeg(p.x, p.y);
 
-    // 指の角度の変化（1フレームぶんの小さい差）
+    // 指の小さな変化量
     let d = angleDelta(nowA, prevPointerAngle);
-
-    // 次フレームのために覚える
     prevPointerAngle = nowA;
 
-    // いまの角度が限界±90のどれくらい近いかを0〜1で測る
-    // 0 = 中央に近い（軽い）
-    // 1 = 端に近い（重い）
-    const t = Math.min(Math.abs(innerAngle) / 90, 1);
-
-    // 抵抗ゲイン（二次関数）
-    // 中央では1.0、端で0.0
-    const gain = 1 - t * t;
-
-    // このゲインをかけることで、端に近いほど動きが鈍くなる
+    // 現在の角度に応じて抵抗をかける（二次関数でしびれていく）
+    const t = Math.min(Math.abs(innerAngle)/90, 1); // 0〜1
+    const gain = 1 - t*t; // 0近くで固まる
     d = d * gain;
 
-    // 回転角を更新
+    // 内側の回転角を更新
     innerAngle += d;
 
-    // 絶対限界はまだ±90°で切る（物理的ストッパー）
+    // 絶対限界
     if (innerAngle < -90) innerAngle = -90;
     if (innerAngle >  90) innerAngle =  90;
 
-    applyRotation(gain);
-
+    applyVisual(gain);
     e.preventDefault();
   }
 
@@ -226,15 +316,16 @@
     dragging = false;
   }
 
-  svg.addEventListener("pointerdown",  onPointerDown);
-  svg.addEventListener("pointermove",  onPointerMove);
-  svg.addEventListener("pointerup",    onPointerUp);
-  svg.addEventListener("pointercancel",onPointerUp);
-  svg.addEventListener("pointerleave", onPointerUp);
+  // イベント登録
+  svg.addEventListener("pointerdown",   onPointerDown);
+  svg.addEventListener("pointermove",   onPointerMove);
+  svg.addEventListener("pointerup",     onPointerUp);
+  svg.addEventListener("pointercancel", onPointerUp);
+  svg.addEventListener("pointerleave",  onPointerUp);
 
   // 初期表示
   initCenterIfNeeded();
-  applyRotation();
+  applyVisual();
 })();
 </script>
 </body>
